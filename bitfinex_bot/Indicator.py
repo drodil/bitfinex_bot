@@ -304,9 +304,9 @@ class Indicator:
         REAL = tb.ULTOSC(self.dataframe, timeperiod1=7, timeperiod2=14, timeperiod3=28)
         value = REAL[len(REAL) - 1]
         #print("ULTOSC: " + str(value))
-        if (value > 50):
+        if (value > 70):
             return "buy"
-        elif (value < 50):
+        elif (value < 40):
             return "sell"
         else:
             return "neutral"

@@ -94,8 +94,8 @@ class Bot:
             print("Available currencies: " + str(self.available_currencies))
             if (len(self.available_currencies) >= self.maxNumberOfCurrencies):
                 print("More than", self.maxNumberOfCurrencies ,"currencies")
-                if (self.coinPairs.index(coin) < self.coinPairs.index(self.available_currencies[len(self.available_currencies) - 1])):
-                    coinToSell = str(self.available_currencies[len(self.available_currencies) - 1])
+                coinToSell = str(self.available_currencies[len(self.available_currencies) - 1])
+                if (self.coinPairs.index(coin) < self.coinPairs.index(coinToSell)):
                     print(str(coin) + "is more valuable than " + coinToSell)
                     sold = False
                     if coinToSell in self.latestPrice:
