@@ -36,41 +36,76 @@ class Indicator:
         else:
             return 0
 
-    def rate(self):
+    def rate(self, coin, time):
         bbands = self.BBANDS()
         cci = self.CCI()
         rsi = self.RSI()
         ma = self.MA()
         ultosc = self.ULTOSC()
+        adx = self.ADX()
+        mom = self.MOM()
+        macd = self.MACD()
         point = 0
+        debug = coin + " " + time + ": " 
 
         if (bbands == "buy"):
             point = point + 1
+            debug = debug + "BBANDS: buy "
         elif (bbands == "sell"):
             point = point - 1
+            debug = debug + "BBANDS: sell "
 
         if (cci == "buy"):
-            point = point + 1
+            point = point + 0.5
+            debug = debug + "CCI: buy "
         elif (cci == "sell"):
-            point = point - 1
+            point = point - 0.5
+            debug = debug + "CCI: sell "
+
+        if (mom == "buy"):
+            point = point + 0.5
+            debug = debug + "MOM: buy "
+        elif (mom == "sell"):
+            point = point - 0.5
+            debug = debug + "MOM: sell "
+
+        if (macd == "buy"):
+            point = point + 0.5
+            debug = debug + "MACD: buy "
+        elif (macd == "sell"):
+            point = point - 0.5
+            debug = debug + "MACD: sell "
 
         if (rsi == "buy"):
             point = point + 1
+            debug = debug + "RSI: buy "
         elif (rsi == "sell"):
             point = point - 1
+            debug = debug + "RSI: sell "
 
         if (ma == "buy"):
             point = point + 1
+            debug = debug + "MA: buy "
         elif (ma == "sell"):
             point = point - 1
+            debug = debug + "MA: sell "
 
         if (ultosc == "buy"):
             point = point + 1
+            debug = debug + "ULTOSC: buy "
         elif (ultosc == "sell"):
             point = point - 1
+            debug = debug + "ULTOSC: sell "
 
+        #if (adx == "strong"):
+            #point = point + 0.5
+            #debug = debug + "ADX: strong "
+        #elif (adx == "weak"):
+            #point = point - 0.5
+            #debug = debug + "ADX: weak "
+
+        print(debug + "-> " + str(point))
         return point
-
 
 
     #overlap studies
@@ -165,7 +200,7 @@ class Indicator:
     def ADX(self):
         ADX = tb.ADX(self.dataframe, timeperiod=14)
         value = ADX[len(ADX) - 1]
-        if(value>adxLimit):
+        if(value > adxLimit):
             #print("ADX: " + str(value) + " sell")
             return "strong"
         elif (value < adxLimit):
@@ -204,10 +239,10 @@ class Indicator:
         value = MOM[len(MOM) - 1]
         oldValue = MOM[len(MOM) - 2]
         if(value > oldValue):
-            print("MOM: " + str(value) + " buy")
+            #print("MOM: " + str(value) + " buy")
             return "buy"
         else:
-            print("MOM: " + str(value) + " buy")
+            #print("MOM: " + str(value) + " buy")
             return "sell"
 
     def RSI(self):
