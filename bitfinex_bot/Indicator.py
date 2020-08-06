@@ -1,4 +1,5 @@
 import talib.abstract as tb
+import logging
 
 adxLimit = 25
 cciUpperLimit = 100
@@ -104,7 +105,7 @@ class Indicator:
             #point = point - 0.5
             #debug = debug + "ADX: weak "
 
-        print(debug + "-> " + str(point))
+        logging.debug(debug + "-> " + str(point))
         return point
 
 

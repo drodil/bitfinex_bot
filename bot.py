@@ -1,8 +1,12 @@
 from datetime import datetime
 import time
 import os
+import sys
 import json
 import random
+import logging
+import google.cloud.logging
+from google.cloud.logging.handlers import CloudLoggingHandler
 from decimal import Decimal
 
 import bitfinex.bitfinex as bitfinex
@@ -14,14 +18,14 @@ from bitfinex_bot.Indicator import Indicator
 class Bot:
     coinPairs = ['btcusd', 'ethusd', 'iotusd', 'xrpusd', 'ltcusd',
                 'zecusd', 'dshusd', 'eosusd', 'neousd', 'etcusd', 
-                'xlmusd', 'xtzusd' ]
+                'xtzusd', 'ampusd' ]
 
     publicV1 = bitfinex.PublicV1()
     publicV2 = bitfinex.PublicV2()
 
-    buyHistory = {"ltcusd": 57.810, "eosusd": 3.0584, "neousd": 12.6, "algusd": 0.3178}
-    latestPrice = {"dummy": 1.0}
-
+    buyHistory = dict()
+    latestPrice = dict()
+    latestScore = dict()
 
     log_file = open("trades.txt", "a+")
     f = open("account_info.txt", 'r')
@@ -32,11 +36,11 @@ class Bot:
 
     # parameters
 
-    maxSpendInUSD = 80
-    maxNumberOfCurrencies = 5
-    interval = ["1m", "30m", "15m", "5m"]
-    sell_indications = []
+    maxSpendInUSD = 175
+    maxNumberOfCurrencies = 7
+    interval = ["1m", "15m", "30m", "5m"]
     profitMultiplier = 1.006
+    breakEvenMultiplier = 1.004
 
     def __init__(self):
 
@@ -45,24 +49,63 @@ class Bot:
         self.available_currencies = []  # shows only available currencies
         self.refreshBalance()
 
+        client = google.cloud.logging.Client()
+        ghandler = CloudLoggingHandler(client)
+        ghandler.setLevel(logging.INFO)
+
+        fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+        shandler = logging.StreamHandler()
+        shandler.setFormatter(fmt)
+        shandler.setLevel(logging.DEBUG)
+
+        fhandler = logging.FileHandler("bot.log")
+        fhandler.setFormatter(fmt)
+        fhandler.setLevel(logging.DEBUG)
+
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(levelname)s:%(message)s",
+            handlers=[
+                shandler,
+                fhandler,
+                ghandler
+            ]
+        ) 
+
         if os.path.isfile("history.json") != True:
             self.save_history()
         
         with open('history.json', 'r') as fp:
             self.buyHistory = json.load(fp)
 
-        print("Bot initialized")
+        logging.info("Bot initialized")
 
+    def learn(self):
+        for coin in self.coinPairs:
+            array = np.array(self.publicV2.candles("1M", "t" + coin.upper(), "hist"))[::-1]
+            df = pd.DataFrame(data=array[:,1:6],
+                              columns=["open", "close", "high", "low", "volume"])
+            # https://blog.quantinsti.com/trading-using-machine-learning-python/
+            time.sleep(5.0)
+ 
     def run(self):
-        print("Bot is running")
+        logging.info("Bot is running")
+        decision_point = len(self.interval) - 1
+        break_point = len(self.interval) - decision_point
+
+        logging.debug("Currently available currencies: " + ", ".join(self.available_currencies))
+
+        #self.learn();
+
         while True:
             btc_signals = {}
             for coin in self.coinPairs:
                 buy = 0
                 force_buy = 0
+                force_sell = 0
                 sell = 0
 
-                for minute in self.interval:
+                for i, minute in enumerate(self.interval):
                     try:
                         array = np.array(self.publicV2.candles(minute, "t" + coin.upper(), "hist"))[::-1]
                         df = pd.DataFrame(data=array[:,0:6],
@@ -77,66 +120,89 @@ class Bot:
                             #print("Following BTC with " + str(to_add))
                             #signal = signal + to_add
 
-                        time.sleep(15.0)
+                        time.sleep(2.0)
                         if (signal >= 1):
+                            if coin in self.available_currencies and i >= break_point and signal < 2:
+                                break
                             buy = buy + 1
                             if signal >= 2:
                                 force_buy = force_buy + 1
-                            elif coin in self.available_currencies:
-                                break
                         elif (signal <= -1):
-                            sell = sell + 1
-                            if coin not in self.available_currencies:
+                            if coin not in self.available_currencies and i >= break_point and signal < 2:
                                 break
+                            sell = sell + 1
+                            if signal <= -2:
+                                force_sell = force_sell + 1
 
                     except Exception as ex:
                         time.sleep(75.0)
-                        print(ex)
+                        logging.error(ex)
                         pass
 
-                    if sell == 0 and buy == 0:
+                    if buy == 0 and sell == 0 and i >= break_point:
+                        time.sleep(2.0)
                         break
+
+                if "close" not in df:
+                    logging.error(coin + " is missing price data")
+                    continue
 
                 price = float(df["close"][len(df) - 1]) 
                 if coin in self.buyHistory and coin in self.available_currencies:
                     if price > self.buyHistory[coin] * self.profitMultiplier:
-                        print(coin + " is now profitable with price " + str(price))
-                        sell = sell + 1
+                        logging.debug(coin + " IS profitable with price " + str(price) + " > " + str(self.buyHistory[coin] * self.profitMultiplier))
                     else:
-                        print(coin + " is not profitable with price " + str(price))
-                        sell = sell - 1
+                        logging.debug(coin + " is NOT profitable with price " + str(price) + " < " + str(self.buyHistory[coin] * self.profitMultiplier))
+
+                self.latestScore[coin] = sell
+                if coin in self.latestPrice:
+                    if self.latestPrice[coin] > price:
+                        logging.debug(coin + " price is going down " + str(self.latestPrice[coin]) + " -> " + str(price))
+                        force_sell = force_sell + 1
+                    if self.latestPrice[coin] < price:
+                        logging.debug(coin + " price is going up " + str(self.latestPrice[coin]) + " -> " + str(price))
+                        force_buy = force_buy + 1
 
                 self.latestPrice[coin] = price 
-                decision_point = len(self.interval) - 1
-                if(buy >= decision_point):
-                    self.buyCoin(coin, str(price), force_buy == decision_point)
-                elif(sell >= decision_point):
-                    if coin in self.sell_indications:
-                        self.sellCoin(coin, str(price))
-                        self.sell_indications.remove(coin)
-                    else:
-                        self.sell_indications.append(coin)
+                if buy == len(self.interval):
+                    force_buy = force_buy + 1
+                if sell == len(self.interval):
+                    force_sell = force_sell + 1
+
+                logging.debug(coin + " decision: B: " + str(buy) + " FB: " + str(force_buy) + " S: " + str(sell) + " FS: " + str(force_sell)) 
+                if(buy >= decision_point or force_buy >= decision_point):
+                    self.buyCoin(coin, str(price), force_buy >= decision_point)
+                elif(sell >= decision_point or force_sell >= decision_point):
+                    self.sellCoin(coin, str(price), force_sell >= decision_point)
 
 
     def buyCoin(self, coin, price, force):
         self.refreshBalance()
-        if (coin not in self.available_currencies and force != True):
-            print("Buying coin attempt: " + coin)
-            print("Available currencies: " + str(self.available_currencies))
-            if (len(self.available_currencies) >= self.maxNumberOfCurrencies) and force == True:
-                print("More than", self.maxNumberOfCurrencies ,"currencies")
-                coinToSell = str(random.choice(self.available_currencies))
+        if force is True:
+            logging.debug(coin + " is on good run, trying to buy more")
+
+        if coin not in self.available_currencies or force is True:
+            logging.info(coin + " buy attempt")
+            if (len(self.available_currencies) >= self.maxNumberOfCurrencies):
+                sortedScores = {k: v for k, v in sorted(self.latestScore.items(), key=lambda x: x[1])} 
                 sold = False
-                if coinToSell in self.latestPrice:
-                    sold = self.sellCoin(coinToSell, self.latestPrice[coinToSell])
-                    time.sleep(60.0)
-                    self.refreshBalance()
-                else:
-                    print("No latest price available for " + coinToSell)
+                for key, value in sortedScores.items():
+                    if key in self.available_currencies:
+                        if key in self.latestPrice and value > 1:
+                            logging.debug(key + " is tried to swap to " + coin)
+                            sold = self.sellCoin(key, self.latestPrice[key], False)
+                            if sold:
+                                time.sleep(10.0)
+                                self.refreshBalance()
+                                break
+
+                if sold is not True:
+                    logging.info(coin + " buy failed as could not sell another coin")
+                    return
 
                 amount = (min(self.maxSpendInUSD, Decimal(self.USD)) - 2) / Decimal(price)
-                if sold and amount > 0:
-                    print("Buying", amount, coin, "at", price)
+                if amount > 0:
+                    logging.info(coin + " buy of " + str(amount) + " at " + str(price))
                     resp = self.tradingV1.new_order(coin, amount, price, "buy", "exchange market", exchange='bitfinex', use_all_available=False)
                     
                     if resp is not None:
@@ -144,26 +210,36 @@ class Bot:
                         self.save_history()
                         self.log_action("BUY", coin, price)
                         self.refreshBalance()
+                    else:
+                        logging.error(coin + " buy failed!")
+                else:
+                    logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
             elif len(self.available_currencies) < self.maxNumberOfCurrencies:
                 amount = (min(self.maxSpendInUSD, Decimal(self.USD)) - 2) / Decimal(price)
                 if amount > 0:
-                    print("Buying", amount, coin, "at", price)
+                    logging.info(coin + " buy of " + str(amount) + " at " + str(price))
                     resp = self.tradingV1.new_order(coin, amount, Decimal(price), "buy", "exchange market", exchange='bitfinex', use_all_available=False)
                     if resp is not None:
                         self.buyHistory[coin] = float(price)
                         self.save_history()
                         self.log_action("BUY", coin, price)
                         self.refreshBalance()
+                    else:
+                        logging.error(coin + " buy failed!")
                 else:
-                    print("Not enough USD (" + str(self.USD) + ") to buy " + coin)
-            else:
-                print("Keeping all as not enough indication to buy " + coin)
+                    logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
+        else:
+            logging.info(coin + " not buying as we already have it and no indication to buy more")
 
-    def sellCoin(self, coin, price):
+    def sellCoin(self, coin, price, force):
         self.refreshBalance()
+        multiplier = self.profitMultiplier
+        if force is True:
+            logging.debug(coin + " is looking bad, trying to break even..")
+            multiplier = self.breakEvenMultiplier
+
         if (coin in self.available_currencies):
-            print("Selling coin attempt: " + coin)
-            print("Available currencies: " + str(self.available_currencies))
+            logging.info(coin + " selling attempt")
             amount = "0"
             sell = True
             for dict in self.balance:
@@ -171,17 +247,26 @@ class Bot:
                     amount = dict["amount"]
 
             if coin in self.buyHistory:
-                if float(price) < self.buyHistory[coin] * self.profitMultiplier:
-                    print("Not selling because it would be bad for business", price, self.buyHistory[coin] * self.profitMultiplier)
+                if float(price) < self.buyHistory[coin] * multiplier: 
+                    logging.info(coin + " not selling CP: " + str(price) + " BP: " + str(self.buyHistory[coin]) + " PP: " + str(self.buyHistory[coin] * multiplier))
                     sell = False
 
             if sell == True:
-                print("Selling", amount, coin, "at", price)
+                logging.info(coin + " sell of " + str(amount) + " at " + str(price))
                 resp = self.tradingV1.new_order(coin, amount, price, "sell", "exchange market", exchange='bitfinex', use_all_available=True)
                 if resp is not None:
+                    if coin in self.buyHistory:
+                        buyPrice = self.buyHistory[coin]
+                        buyValue = buyPrice * float(amount)
+                        sellValue = float(amount) * float(price)
+                        logging.info(coin + " sell made profit of " + str(sellValue - buyValue) + "USD")
                     self.log_action("SELL", coin, price)
                     self.refreshBalance()
                     return True
+                else:
+                    logging.error(coin + " sell failed!")
+        else:
+            logging.warning(coin + " sell failed as we do not have it")
         return False
 
     def refreshBalance(self):
@@ -196,18 +281,7 @@ class Bot:
                     dict["currency"]= dict["currency"] + "usd"
                     self.available_currencies.append(dict["currency"])
                     self.balance.append(dict)
-            self.available_currencies = self.sort(self.available_currencies)
-
-    def sort(self, currency_list):
-        index_currency_dict = {}
-        res = []
-        for currency in currency_list:
-            index_currency_dict[self.coinPairs.index(currency)] = currency
-
-        for key in sorted(index_currency_dict):
-            res.append(index_currency_dict[key])
-
-        return res
+            random.shuffle(self.available_currencies)
 
     def save_history(self):
         with open("history.json", "w") as fp:

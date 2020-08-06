@@ -1,6 +1,7 @@
 # encoding=utf8
 
 import requests  # pip install requests
+import logging
 import json
 import base64
 import hashlib
@@ -15,7 +16,11 @@ class PublicV1:
     """
     base_url = "https://api.bitfinex.com/"
 
+    def __init__(self):
+        logging.getLogger("requests").setLevel(logging.WARNING)
+
     def _get(self, path, *args, **kwargs):
+        logging.getLogger("requests").setLevel(logging.WARNING)
         return requests.get(self.base_url + path, kwargs)
 
     def funding_book(self, currency):
@@ -152,6 +157,10 @@ class PublicV1:
 class PublicV2:
     base_url = "https://api.bitfinex.com/"
 
+    def __init__(self):
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     def _get(self, path, *args, **kwargs):
         return requests.get(self.base_url + path, kwargs)
 
@@ -181,6 +190,7 @@ class Trading_v2():
         self.base_url = "https://api.bitfinex.com/"
         self.key = key
         self.secret = secret.encode()
+        logging.getLogger("requests").setLevel(logging.WARNING)
 
     def _nonce(self):
         """
@@ -232,6 +242,7 @@ class TradingV1:
         self.base_url = "https://api.bitfinex.com"
         self.key = key
         self.secret = secret.encode()
+        logging.getLogger("requests").setLevel(logging.WARNING)
 
     def _nonce(self):
         """
