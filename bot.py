@@ -10,12 +10,11 @@ from google.cloud.logging.handlers import CloudLoggingHandler
 from google.cloud import datastore
 from decimal import Decimal
 
-import bitfinex.bitfinex as bitfinex
 import numpy as np
 import pandas as pd
 
 import indicator
-import api
+import api as bitfinex
 
 class Bot:
     # Traded coin pairs
