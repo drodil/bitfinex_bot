@@ -8,7 +8,6 @@ import logging
 import google.cloud.logging
 from google.cloud.logging.handlers import CloudLoggingHandler
 from google.cloud import datastore
-from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -228,7 +227,7 @@ class Bot:
                         logging.info(coin + " buy failed as could not sell another coin")
                         return False
 
-                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, Decimal(self.USD))) / Decimal(price)
+                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, float(self.USD))) / float(price)
                 if amount >= 0.0001:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
                     resp = self.trading_v1.new_order(coin, amount, price, "buy", "exchange market", aff_code=self.aff_code, exchange='bitfinex', use_all_available=False)
@@ -247,10 +246,10 @@ class Bot:
                 else:
                     logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
             elif len(self.available_currencies) < self.max_number_of_coins:
-                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, Decimal(self.USD))) / Decimal(price)
+                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, float(self.USD))) / float(price)
                 if amount >= 0.0001:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
-                    resp = self.trading_v1.new_order(coin, amount, Decimal(price), "buy", "exchange market", aff_code=self.aff_code, exchange='bitfinex', use_all_available=False)
+                    resp = self.trading_v1.new_order(coin, amount, float(price), "buy", "exchange market", aff_code=self.aff_code, exchange='bitfinex', use_all_available=False)
                     if resp is not None:
                         hist = float(price)
                         if coin in self.buy_history:

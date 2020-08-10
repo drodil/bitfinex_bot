@@ -7,7 +7,8 @@ setup(name='bitfinex-bot',
         'requests',
 	'numpy',
 	'pandas',
-	'talib'
+	'talib',
+        'google-cloud-logging'
       ],
       entry_points={
           'console_scripts': [
