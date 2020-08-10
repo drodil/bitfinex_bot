@@ -344,5 +344,13 @@ class Bot:
             return float(resp['ask'])
         return default
 
-bot = Bot()
-bot.run()
+def main():
+    bot = Bot()
+    bot.run()
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        print('Interrupted by user!')
+
