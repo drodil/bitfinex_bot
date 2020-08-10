@@ -12,7 +12,7 @@ from google.cloud import datastore
 import numpy as np
 import pandas as pd
 
-import indicator
+import indicator as ind
 import api as bitfinex
 
 class Bot:
@@ -110,7 +110,7 @@ class Bot:
                         df = pd.DataFrame(data=array[:,0:6],
                                           columns=["date", "open", "close", "high", "low", "volume"])
 
-                        indicator = Indicator(df)
+                        indicator = ind.Indicator(df)
                         signal = indicator.rate(coin, minute)
 
                         time.sleep(2.0)
