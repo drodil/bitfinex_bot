@@ -13,8 +13,9 @@ from decimal import Decimal
 import bitfinex.bitfinex as bitfinex
 import numpy as np
 import pandas as pd
-from bitfinex_bot.Indicator import Indicator
 
+import indicator
+import api
 
 class Bot:
     # Traded coin pairs
