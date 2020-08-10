@@ -28,7 +28,7 @@ you do not want this, please remove the google cloud handler from the code.
 ## Usage
 
 You should insert your Bitfinex API key and secret into
-bitfinex_bot/account_info in the following format:
+file **bitfinex_bot/account_info** in the following format:
 
 ```
 <API Key>
