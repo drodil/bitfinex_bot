@@ -15,9 +15,7 @@ class Indicator:
     def __init__(self, dataframe):
         self.dataframe = dataframe
 
-
     def signal(self):
-
         ma14 = tb.SMA(self.dataframe, 14)
         ma30 = tb.SMA(self.dataframe, 30)
 
@@ -47,7 +45,7 @@ class Indicator:
         mom = self.MOM()
         macd = self.MACD()
         point = 0
-        debug = coin + " " + time + ": " 
+        debug = coin + " " + time + ": "
 
         if (bbands == "buy"):
             point = point + 1
@@ -98,25 +96,11 @@ class Indicator:
             point = point - 1
             debug = debug + "ULTOSC: sell "
 
-        #if (adx == "strong"):
-            #point = point + 0.5
-            #debug = debug + "ADX: strong "
-        #elif (adx == "weak"):
-            #point = point - 0.5
-            #debug = debug + "ADX: weak "
-
         logging.debug(debug + "-> " + str(point))
         return point
 
-
-    #overlap studies
-
     def BBANDS(self):
         BBANDS = tb.BBANDS(self.dataframe, timeperiod=100, nbdevup=2.0, nbdevdn=2.0, matype=0)
-        # print("lowerband", BBANDS['lowerband'][len(BBANDS)-1])
-        # print("upperband", BBANDS['upperband'][len(BBANDS)-1])
-        # print("open", self.dataframe['open'][len(self.dataframe)-1])
-        # print("close", self.dataframe['close'][len(self.dataframe)-1])
         if(self.dataframe['open'][len(self.dataframe)-1] < BBANDS['lowerband'][len(BBANDS)-1] and BBANDS['lowerband'][len(BBANDS)-1] < self.dataframe['close'][len(self.dataframe)-1]):
             return "buy"
         elif(self.dataframe['open'][len(self.dataframe)-1] > BBANDS['upperband'][len(BBANDS)-1] and BBANDS['upperband'][len(BBANDS)-1] > self.dataframe['close'][len(self.dataframe)-1]):
@@ -126,13 +110,10 @@ class Indicator:
 
     def MA(self):
         if(self.EMA() == "buy" and self.SMA() == "buy"):
-            #print("MA: buy")
             return "buy"
         elif(self.EMA() == "sell" and self.SMA() == "sell"):
-            #print("MA: sell")
             return "sell"
         else:
-            #print("MA: neutral")
             return "neutral"
 
     def EMA(self):
@@ -143,19 +124,14 @@ class Indicator:
             value = real[len(real)-1]
             price = self.dataframe['close'][len(self.dataframe) - 1]
             if (value > price):
-                #print("EMA: " + str(value) + " sell")
                 sell = sell +1
             elif (value < price):
-                #print("EMA: " + str(value) + " buy")
                 buy = buy + 1
         if (sell == 3):
-            #print("EMA: sell")
             return "sell"
         elif (buy == 3):
-            #print("EMA: buy")
             return "buy"
         else:
-            #print("EMA: neutral")
             return "neutral"
 
     def SMA(self):
@@ -166,49 +142,36 @@ class Indicator:
             value = real[len(real)-1]
             price = self.dataframe['close'][len(self.dataframe) - 1]
             if (value > price):
-                #print("EMA: " + str(value) + " sell")
                 sell = sell +1
             elif (value < price):
-                #print("EMA: " + str(value) + " buy")
                 buy = buy + 1
         if (sell == 3):
-            #print("SMA: sell")
             return "sell"
         elif (buy == 3):
-            #print("SMA: buy")
             return "buy"
         else:
-            #print("SMA: neutral")
             return "neutral"
 
     def SAR(self):
         SAR = tb.SAR(self.dataframe, acceleration=0, maximum=0)
         if (self.dataframe['open'][len(self.dataframe) - 1] > SAR[len(SAR) - 1]):
-            #print("SAR: buy")
             return "buy"
         elif (self.dataframe['open'][len(self.dataframe) - 1] < SAR[len(SAR) - 1]):
-            #print("SAR: sell")
             return "sell"
         else:
-            #print("SAR: neutral")
             return "neutral"
 
     def VMA(self):
         real = tb.WMA(self.close, timeperiod=30)
 
-    #momentum indicators
-
     def ADX(self):
         ADX = tb.ADX(self.dataframe, timeperiod=14)
         value = ADX[len(ADX) - 1]
         if(value > adxLimit):
-            #print("ADX: " + str(value) + " sell")
             return "strong"
         elif (value < adxLimit):
-            #print("ADX: " + str(value) + " buy")
             return "weak"
         else:
-            #print("ADX: " + str(value) + " neutral")
             return "neutral"
 
     def CCI(self):
@@ -229,10 +192,8 @@ class Indicator:
         if (value > signal):
             return "buy"
         elif (value < signal):
-            #print("MACD: " + str(value) + " sell")
             return "sell"
         else:
-            #print("MACD: " + str(value) + " neutral")
             return "neutral"
 
     def MOM(self):
@@ -240,10 +201,8 @@ class Indicator:
         value = MOM[len(MOM) - 1]
         oldValue = MOM[len(MOM) - 2]
         if(value > oldValue):
-            #print("MOM: " + str(value) + " buy")
             return "buy"
         else:
-            #print("MOM: " + str(value) + " buy")
             return "sell"
 
     def RSI(self):
@@ -258,91 +217,65 @@ class Indicator:
 
     def STOCH(self):
         STOCH = tb.STOCH(self.dataframe, fastk_period=5, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
-        slowk = STOCH["slowk"][len(STOCH)-1] #main
-        slowd = STOCH["slowd"][len(STOCH)-1] #signal
-        oldSlowk = STOCH["slowk"][len(STOCH)-2] #main
-        oldSlowd = STOCH["slowd"][len(STOCH)-2] #signal
-
-        #sell when main line > upper band (80) and main line crosses the signal line from above-down
-        #buy when main line < lower band (20) and main line crosses the signal line from bottom-up
+        slowk = STOCH["slowk"][len(STOCH)-1]
+        slowd = STOCH["slowd"][len(STOCH)-1]
+        oldSlowk = STOCH["slowk"][len(STOCH)-2]
+        oldSlowd = STOCH["slowd"][len(STOCH)-2]
 
         if (slowk > 80):
-            #print("RSI: " + str(value) + " overbought")
             return "overbought"
         elif (slowk > 60):
-            #print("RSI: " + str(value) + " buy")
             return "buy"
         elif (slowk < 20):
-            #print("RSI: " + str(value) + " oversold")
             return "oversold"
         elif (slowk < 40):
-            #print("RSI: " + str(value) + " sell")
             return "sell"
         else:
-            #print("RSI: " + str(value) + " neutral")
             return "neutral"
 
     def STOCHF(self):
         STOCHF= tb.STOCHF(self.dataframe, fastk_period=5, fastd_period=3, fastd_matype=0)
-        fastk = STOCHF["fastk"][len(STOCHF) - 1]  # main
-        fastd = STOCHF["fastd"][len(STOCHF) - 1]  # signal
-        oldFastk = STOCHF["fastk"][len(STOCHF) - 2]  # main
-        oldFastd = STOCHF["fastd"][len(STOCHF) - 2]  # signal
-
-        # sell when main line > upper band (80) and main line crosses the signal line from above-down
-        # buy when main line < lower band (20) and main line crosses the signal line from bottom-up
+        fastk = STOCHF["fastk"][len(STOCHF) - 1]
+        fastd = STOCHF["fastd"][len(STOCHF) - 1]
+        oldFastk = STOCHF["fastk"][len(STOCHF) - 2]
+        oldFastd = STOCHF["fastd"][len(STOCHF) - 2]
 
         if (fastk > 80):
-            #print("RSI: " + str(value) + " overbought")
             return "overbought"
         elif (fastk > 60):
-            #print("RSI: " + str(value) + " buy")
             return "buy"
         elif (fastk < 20):
-            #print("RSI: " + str(value) + " oversold")
             return "oversold"
         elif (fastk < 40):
-            #print("RSI: " + str(value) + " sell")
             return "sell"
         else:
-            #print("RSI: " + str(value) + " neutral")
             return "neutral"
-
-        # not implemented
 
     def STOCHRSI(self):
         STOCHRSI= tb.STOCHRSI(self.dataframe, fastk_period=5, fastd_period=3, fastd_matype=0)
-        fastk = STOCHRSI["fastk"][len(STOCHRSI) - 1]  # main
-        fastd = STOCHRSI["fastd"][len(STOCHRSI) - 1]  # signal
-        oldFastk = STOCHRSI["fastk"][len(STOCHRSI) - 2]  # main
-        oldFastd = STOCHRSI["fastd"][len(STOCHRSI) - 2]  # signal
-
-        # sell when main line > upper band (80) and main line crosses the signal line from above-down
-        # buy when main line < lower band (20) and main line crosses the signal line from bottom-up
+        fastk = STOCHRSI["fastk"][len(STOCHRSI) - 1]
+        fastd = STOCHRSI["fastd"][len(STOCHRSI) - 1]
+        oldFastk = STOCHRSI["fastk"][len(STOCHRSI) - 2]
+        oldFastd = STOCHRSI["fastd"][len(STOCHRSI) - 2]
 
         if (fastk > 80):
-            #print("RSI: " + str(value) + " overbought")
             return "overbought"
         elif (fastk > 60):
-            #print("RSI: " + str(value) + " buy")
             return "buy"
         elif (fastk < 20):
-            #print("RSI: " + str(value) + " oversold")
             return "oversold"
         elif (fastk < 40):
-            #print("RSI: " + str(value) + " sell")
             return "sell"
         else:
-            #print("RSI: " + str(value) + " neutral")
             return "neutral"
 
     def ULTOSC(self):
         REAL = tb.ULTOSC(self.dataframe, timeperiod1=7, timeperiod2=14, timeperiod3=28)
         value = REAL[len(REAL) - 1]
-        #print("ULTOSC: " + str(value))
         if (value > 70):
             return "buy"
         elif (value < 40):
             return "sell"
         else:
             return "neutral"
+
