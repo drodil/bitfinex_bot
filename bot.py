@@ -7,6 +7,7 @@ import random
 import logging
 import google.cloud.logging
 from google.cloud.logging.handlers import CloudLoggingHandler
+from google.cloud import datastore
 from decimal import Decimal
 
 import bitfinex.bitfinex as bitfinex
@@ -27,6 +28,7 @@ class Bot:
     buyAttempts = dict()
     latestPrice = dict()
     latestScore = dict()
+    affCode = "RQr8dEzNJ"
 
     log_file = open("trades.txt", "a+")
     f = open("account_info.txt", 'r')
@@ -45,6 +47,8 @@ class Bot:
     profitMultiplier = 1.006
     breakEvenMultiplier = 1 + (commission * 2)
 
+    ds = datastore.Client()
+
     def __init__(self):
 
         self.USD = 0  # available USD dollars
@@ -61,7 +65,7 @@ class Bot:
         shandler.setFormatter(fmt)
         shandler.setLevel(logging.DEBUG)
 
-        fhandler = logging.FileHandler("bot.log")
+        fhandler = logging.handlers.TimedRotatingFileHandler("bot.log", when="d", interval=1, backupCount=14)
         fhandler.setFormatter(fmt)
         fhandler.setLevel(logging.DEBUG)
 
@@ -92,6 +96,15 @@ class Bot:
                               columns=["open", "close", "high", "low", "volume"])
             # https://blog.quantinsti.com/trading-using-machine-learning-python/
             time.sleep(5.0)
+
+    def persist_candles(self, coin, period, candles):
+        key = datastore.Key('candle', 1234)
+        entity = datastore.Entity(key)
+        entity['coin'] = coin
+        entity['period'] = period
+        entity['created'] = datetime.now()
+        entity['candles'] = candles
+        self.ds.put(entity)
  
     def run(self):
         logging.info("Bot is running")
@@ -102,7 +115,12 @@ class Bot:
 
         #self.learn();
 
+#        history = None
+
         while True:
+#            history = self.publicV2.tickers(self.available_currencies)
+#            print(history)
+
             btc_signals = {}
             for coin in self.coinPairs:
                 buy = 0
@@ -116,6 +134,7 @@ class Bot:
                         df = pd.DataFrame(data=array[:,0:6],
                                           columns=["date", "open", "close", "high", "low", "volume"])
 
+#                        self.persist_candles(coin, minute, array)
                         indicator = Indicator(df)
                         signal = indicator.rate(coin, minute)
                         if coin == 'btcusd':
@@ -180,7 +199,7 @@ class Bot:
                     force_sell = force_sell + 1
 
                 if coin in self.buyAttempts:
-                    if self.buyAttempts[coin] > 4:
+                    if self.buyAttempts[coin] > 8:
                         logging.debug(coin + " it's too late to catch the buy train")
                         buy = 0
                         force_buy = 0
@@ -200,6 +219,9 @@ class Bot:
                 elif(sell >= decision_point or force_sell >= decision_point):
                     bid = self.get_bid(coin, price)
                     sold = self.sellCoin(coin, str(bid), force_sell >= decision_point)
+                    if coin in self.buyAttempts:
+                        del self.buyAttempts[coin]
+                else:
                     if coin in self.buyAttempts:
                         del self.buyAttempts[coin]
 
@@ -236,10 +258,10 @@ class Bot:
                         logging.info(coin + " buy failed as could not sell another coin")
                         return False
 
-                amount = min(self.maxSpendInUSD, Decimal(self.USD)) / Decimal(price)
-                if amount >= self.minSpendInUSD:
+                amount = min(self.maxSpendInUSD, max(self.minSpendInUSD, Decimal(self.USD))) / Decimal(price)
+                if amount >= 0.0001:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
-                    resp = self.tradingV1.new_order(coin, amount, price, "buy", "exchange market", exchange='bitfinex', use_all_available=False)
+                    resp = self.tradingV1.new_order(coin, amount, price, "buy", "exchange market", aff_code=self.affCode, exchange='bitfinex', use_all_available=False)
                     
                     if resp is not None:
                         hist = float(price)
@@ -255,10 +277,10 @@ class Bot:
                 else:
                     logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
             elif len(self.available_currencies) < self.maxNumberOfCurrencies:
-                amount = min(self.maxSpendInUSD, Decimal(self.USD)) / Decimal(price)
-                if amount >= self.minSpendInUSD:
+                amount = min(self.maxSpendInUSD, max(self.minSpendInUSD, Decimal(self.USD))) / Decimal(price)
+                if amount >= 0.0001:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
-                    resp = self.tradingV1.new_order(coin, amount, Decimal(price), "buy", "exchange market", exchange='bitfinex', use_all_available=False)
+                    resp = self.tradingV1.new_order(coin, amount, Decimal(price), "buy", "exchange market", aff_code=self.affCode, exchange='bitfinex', use_all_available=False)
                     if resp is not None:
                         hist = float(price)
                         if coin in self.buyHistory:
@@ -298,7 +320,7 @@ class Bot:
 
             if sell == True:
                 logging.info(coin + " sell of " + str(amount) + " at " + str(price))
-                resp = self.tradingV1.new_order(coin, amount, price, "sell", "exchange market", exchange='bitfinex', use_all_available=True)
+                resp = self.tradingV1.new_order(coin, amount, price, "sell", "exchange market", aff_code=self.affCode, exchange='bitfinex', use_all_available=True)
                 if resp is not None:
                     if coin in self.buyHistory:
                         buyPrice = self.buyHistory[coin]
@@ -324,7 +346,7 @@ class Bot:
             self.balance = []
             for dict in balance:
                 if dict["currency"] == "usd":
-                    self.USD = dict["amount"]
+                    self.USD = float(dict["amount"])
                 elif (float(dict["amount"]) > 0.0001):
                     dict["currency"]= dict["currency"] + "usd"
                     self.available_currencies.append(dict["currency"])

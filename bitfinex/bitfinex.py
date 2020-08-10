@@ -168,6 +168,10 @@ class PublicV2:
         res = self._get('v2/ticker/{}'.format(symbol))
         return res.json()
 
+    def tickers(self, symbols):
+        res = requests.get('https://api-pub.bitfinex.com/v2/tickers?symbols=t{}'.format(',t'.join(symbols)))
+        return res.json()
+
     def trades(self, symbol='tBTCUSD'):
         res = self._get('v2/trades/{}/hist'.format(symbol))
         return res.json()
@@ -508,7 +512,7 @@ class TradingV1:
         }
         return self._post('/v1/key_info', payload)
 
-    def new_order(self, symbol, amount, price, side, type_, exchange='bitfinex', use_all_available=False):
+    def new_order(self, symbol, amount, price, side, type_, aff_code=None, exchange='bitfinex', use_all_available=False):
         """
         Sets up new order.
 
@@ -547,6 +551,7 @@ class TradingV1:
             'side': side,
             'type': type_,
             'exchange': exchange,
+            'aff_code': aff_code,
             'use_all_available': int(use_all_available),
             'ocoorder': False,
             'buy_price_oco': 0,
