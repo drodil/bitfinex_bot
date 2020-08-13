@@ -137,7 +137,6 @@ class Bot:
                     force_sell = force_sell + 1
 
             if buy == 0 and sell == 0 and i >= break_point:
-                logging.debug("PLAA")
                 time.sleep(2.0)
                 break
 
