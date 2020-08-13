@@ -88,111 +88,116 @@ class Bot:
 
         self.buy_history = {key:val for key, val in self.buy_history.items() if key in self.coin_pairs}
 
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+
         logging.info("Bot initialized")
 
     def run(self):
         logging.info("Bot is running")
-        decision_point = len(self.interval) - 1
-        break_point = len(self.interval) - decision_point
-
         logging.debug("Currently available currencies: " + ", ".join(self.available_currencies))
 
         while True:
-            for coin in self.coin_pairs:
+            try:
+                for coin in self.coin_pairs:
+                    self._handle_coin(coin)
+            except Exception as ex:
+                time.sleep(75.0)
+                logging.error(ex)
+                pass
+   
+    def _handle_coin(self, coin):
+        decision_point = len(self.interval) - 1
+        break_point = len(self.interval) - decision_point
+        buy = 0
+        force_buy = 0
+        force_sell = 0
+        sell = 0
+
+        for i, minute in enumerate(self.interval):
+            array = np.array(self.public_v2.candles(minute, "t" + coin.upper(), "hist"))[::-1]
+            df = pd.DataFrame(data=array[:,0:6],
+                              columns=["date", "open", "close", "high", "low", "volume"])
+
+            indicator = ind.Indicator(df)
+            signal = indicator.rate(coin, minute)
+
+            time.sleep(2.0)
+            if (signal >= 1):
+                if coin in self.available_currencies and i >= break_point and signal < 2:
+                    break
+                buy = buy + 1
+                if signal >= 2:
+                    force_buy = force_buy + 1
+            elif (signal <= -1):
+                if coin not in self.available_currencies and i >= break_point and signal < 2:
+                    break
+                sell = sell + 1
+                if signal <= -2:
+                    force_sell = force_sell + 1
+
+            if buy == 0 and sell == 0 and i >= break_point:
+                logging.debug("PLAA")
+                time.sleep(2.0)
+                break
+
+        if "close" not in df:
+            logging.error(coin + " is missing price data")
+            return
+
+        price = float(df["close"][len(df) - 1])
+        if coin in self.buy_history and coin in self.available_currencies:
+            if price > self.buy_history[coin] * self.profit_multiplier:
+                logging.debug(coin + " IS profitable with price " + str(price) + " > " + str(self.buy_history[coin] * self.profit_multiplier))
+            else:
+                logging.debug(coin + " is NOT profitable with price " + str(price) + " < " + str(self.buy_history[coin] * self.profit_multiplier))
+
+        self.latest_score[coin] = sell
+        if coin in self.latest_price:
+            if self.latest_price[coin] > price:
+                logging.debug(coin + " price is going down " + str(self.latest_price[coin]) + " -> " + str(price))
+                force_sell = force_sell + 1
+            if self.latest_price[coin] < price:
+                logging.debug(coin + " price is going up " + str(self.latest_price[coin]) + " -> " + str(price))
+                force_buy = force_buy + 1
+
+        if sell == len(self.interval):
+            force_sell = force_sell + 1
+        if buy == len(self.interval):
+            force_buy = force_buy + 1
+
+        self.latest_price[coin] = price
+        if buy == len(self.interval):
+            force_buy = force_buy + 1
+        if sell == len(self.interval):
+            force_sell = force_sell + 1
+
+        if coin in self.buy_attempts:
+            if self.buy_attempts[coin] > 8:
+                logging.debug(coin + " it's too late to catch the buy train")
                 buy = 0
                 force_buy = 0
-                force_sell = 0
-                sell = 0
 
-                for i, minute in enumerate(self.interval):
-                    try:
-                        array = np.array(self.public_v2.candles(minute, "t" + coin.upper(), "hist"))[::-1]
-                        df = pd.DataFrame(data=array[:,0:6],
-                                          columns=["date", "open", "close", "high", "low", "volume"])
-
-                        indicator = ind.Indicator(df)
-                        signal = indicator.rate(coin, minute)
-
-                        time.sleep(2.0)
-                        if (signal >= 1):
-                            if coin in self.available_currencies and i >= break_point and signal < 2:
-                                break
-                            buy = buy + 1
-                            if signal >= 2:
-                                force_buy = force_buy + 1
-                        elif (signal <= -1):
-                            if coin not in self.available_currencies and i >= break_point and signal < 2:
-                                break
-                            sell = sell + 1
-                            if signal <= -2:
-                                force_sell = force_sell + 1
-
-                    except Exception as ex:
-                        time.sleep(75.0)
-                        logging.error(ex)
-                        pass
-
-                    if buy == 0 and sell == 0 and i >= break_point:
-                        time.sleep(2.0)
-                        break
-
-                if "close" not in df:
-                    logging.error(coin + " is missing price data")
-                    continue
-
-                price = float(df["close"][len(df) - 1])
-                if coin in self.buy_history and coin in self.available_currencies:
-                    if price > self.buy_history[coin] * self.profit_multiplier:
-                        logging.debug(coin + " IS profitable with price " + str(price) + " > " + str(self.buy_history[coin] * self.profit_multiplier))
-                    else:
-                        logging.debug(coin + " is NOT profitable with price " + str(price) + " < " + str(self.buy_history[coin] * self.profit_multiplier))
-
-                self.latest_score[coin] = sell
-                if coin in self.latest_price:
-                    if self.latest_price[coin] > price:
-                        logging.debug(coin + " price is going down " + str(self.latest_price[coin]) + " -> " + str(price))
-                        force_sell = force_sell + 1
-                    if self.latest_price[coin] < price:
-                        logging.debug(coin + " price is going up " + str(self.latest_price[coin]) + " -> " + str(price))
-                        force_buy = force_buy + 1
-
-                if sell == len(self.interval):
-                    force_sell = force_sell + 1
-                if buy == len(self.interval):
-                    force_buy = force_buy + 1
-
-                self.latest_price[coin] = price
-                if buy == len(self.interval):
-                    force_buy = force_buy + 1
-                if sell == len(self.interval):
-                    force_sell = force_sell + 1
-
-                if coin in self.buy_attempts:
-                    if self.buy_attempts[coin] > 8:
-                        logging.debug(coin + " it's too late to catch the buy train")
-                        buy = 0
-                        force_buy = 0
-
-                logging.debug(coin + " decision: B: " + str(buy) + " FB: " + str(force_buy) + " S: " + str(sell) + " FS: " + str(force_sell))
-                if(buy >= decision_point or force_buy >= decision_point):
-                    ask = self._get_ask(coin, price)
-                    bought = self._buy_coin(coin, str(ask), force_buy >= decision_point)
-                    if not bought:
-                        if coin not in self.buy_attempts:
-                            self.buy_attempts[coin] = 0
-                        else:
-                            self.buy_attempts[coin] = self.buy_attempts[coin] + 1
-                    elif coin in self.buy_attempts:
-                        del self.buy_attempts[coin]
-
-                elif(sell >= decision_point or force_sell >= decision_point):
-                    bid = self._get_bid(coin, price)
-                    sold = self._sell_coin(coin, str(bid), force_sell >= decision_point)
-                    if coin in self.buy_attempts:
-                        del self.buy_attempts[coin]
+        logging.debug(coin + " decision: B: " + str(buy) + " FB: " + str(force_buy) + " S: " + str(sell) + " FS: " + str(force_sell))
+        if(buy >= decision_point or force_buy >= decision_point):
+            ask = self._get_ask(coin, price)
+            bought = self._buy_coin(coin, str(ask), force_buy >= decision_point)
+            if not bought:
+                if coin not in self.buy_attempts:
+                    self.buy_attempts[coin] = 0
                 else:
-                    if coin in self.buy_attempts:
-                        del self.buy_attempts[coin]
+                    self.buy_attempts[coin] = self.buy_attempts[coin] + 1
+            elif coin in self.buy_attempts:
+                del self.buy_attempts[coin]
+
+        elif(sell >= decision_point or force_sell >= decision_point):
+            bid = self._get_bid(coin, price)
+            sold = self._sell_coin(coin, str(bid), force_sell >= decision_point)
+            if coin in self.buy_attempts:
+                del self.buy_attempts[coin]
+        else:
+            if coin in self.buy_attempts:
+                del self.buy_attempts[coin]
 
     def _buy_coin(self, coin, price, force):
         if force is True and coin in self.available_currencies:

@@ -4,5 +4,6 @@ __pycache__/
 *$py.class
 history.json
 *.log
+*.log.*
 account_info.txt
 trades.txt
