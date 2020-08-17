@@ -113,7 +113,7 @@ class Bot:
         force_buy = 0
         force_sell = 0
         sell = 0
-
+           
         for i, minute in enumerate(self.interval):
             array = np.array(self.public_v2.candles(minute, "t" + coin.upper(), "hist"))[::-1]
             df = pd.DataFrame(data=array[:,0:6],
@@ -148,6 +148,7 @@ class Bot:
         if coin in self.buy_history and coin in self.available_currencies:
             if price > self.buy_history[coin] * self.profit_multiplier:
                 logging.debug(coin + " IS profitable with price " + str(price) + " > " + str(self.buy_history[coin] * self.profit_multiplier))
+                force_sell = force_sell + 1
             else:
                 logging.debug(coin + " is NOT profitable with price " + str(price) + " < " + str(self.buy_history[coin] * self.profit_multiplier))
 
@@ -172,7 +173,7 @@ class Bot:
             force_sell = force_sell + 1
 
         if coin in self.buy_attempts:
-            if self.buy_attempts[coin] > 8:
+            if self.buy_attempts[coin] > 6:
                 logging.debug(coin + " it's too late to catch the buy train")
                 buy = 0
                 force_buy = 0
@@ -184,7 +185,7 @@ class Bot:
             if not bought:
                 if coin not in self.buy_attempts:
                     self.buy_attempts[coin] = 0
-                else:
+                elif self.buy_attempts[coin] < 10:
                     self.buy_attempts[coin] = self.buy_attempts[coin] + 1
             elif coin in self.buy_attempts:
                 del self.buy_attempts[coin]
@@ -193,10 +194,13 @@ class Bot:
             bid = self._get_bid(coin, price)
             sold = self._sell_coin(coin, str(bid), force_sell >= decision_point)
             if coin in self.buy_attempts:
-                del self.buy_attempts[coin]
+                self.buy_attempts[coin] = self.buy_attempts[coin] - 1
         else:
             if coin in self.buy_attempts:
-                del self.buy_attempts[coin]
+                self.buy_attempts[coin] = self.buy_attempts[coin] - 1
+
+        if coin in self.buy_attempts and self.buy_attempts[coin] <= 0:
+            del self.buy_attempts[coin]
 
     def _buy_coin(self, coin, price, force):
         if force is True and coin in self.available_currencies:
@@ -210,8 +214,8 @@ class Bot:
 
         self._refresh_balance()
         if coin not in self.available_currencies or force is True:
-            logging.info(coin + " buy attempt")
-            if (len(self.available_currencies) >= self.max_number_of_coins):
+            logging.debug(coin + " buy attempt")
+            if (len(self.available_currencies) >= self.max_number_of_coins) and force is True:
                 # If not enough USD, sell some other coin to buy more
                 if self.USD < self.min_spend_in_usd:
                     sortedScores = {k: v for k, v in sorted(self.latest_score.items(), key=lambda x: x[1])}
@@ -228,11 +232,11 @@ class Bot:
                                     break
 
                     if sold is not True:
-                        logging.info(coin + " buy failed as could not sell another coin")
+                        logging.debug(coin + " buy failed as could not sell another coin")
                         return False
 
                 amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, float(self.USD))) / float(price)
-                if amount >= 0.0001:
+                if amount >= 0.0001 and self.USD > self.min_spend_in_usd:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
                     resp = self.trading_v1.new_order(coin, amount, price, "buy", "exchange market", aff_code=self.aff_code, exchange='bitfinex', use_all_available=False)
 
@@ -248,10 +252,10 @@ class Bot:
                     else:
                         logging.error(coin + " buy failed!")
                 else:
-                    logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
+                    logging.debug(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
             elif len(self.available_currencies) < self.max_number_of_coins:
                 amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, float(self.USD))) / float(price)
-                if amount >= 0.0001:
+                if amount >= 0.0001 and self.USD > self.min_spend_in_usd:
                     logging.info(coin + " buy of " + str(amount) + " at " + str(price))
                     resp = self.trading_v1.new_order(coin, amount, float(price), "buy", "exchange market", aff_code=self.aff_code, exchange='bitfinex', use_all_available=False)
                     if resp is not None:
@@ -266,9 +270,9 @@ class Bot:
                     else:
                         logging.error(coin + " buy failed!")
                 else:
-                    logging.info(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
+                    logging.debug(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
         else:
-            logging.info(coin + " not buying as we already have it and no indication to buy more")
+            logging.debug(coin + " not buying as we already have it and no indication to buy more")
         return False
 
     def _sell_coin(self, coin, price, force):
@@ -279,7 +283,7 @@ class Bot:
             multiplier = self.break_even_multiplier
 
         if (coin in self.available_currencies):
-            logging.info(coin + " selling attempt")
+            logging.debug(coin + " selling attempt")
             amount = "0"
             sell = True
             for dict in self.balance:
@@ -288,7 +292,7 @@ class Bot:
 
             if coin in self.buy_history:
                 if float(price) < self.buy_history[coin] * multiplier:
-                    logging.info(coin + " not selling CP: " + str(price) + " BP: " + str(self.buy_history[coin]) + " PP: " + str(self.buy_history[coin] * multiplier))
+                    logging.debug(coin + " not selling CP: " + str(price) + " BP: " + str(self.buy_history[coin]) + " PP: " + str(self.buy_history[coin] * multiplier))
                     sell = False
 
             if sell == True:
