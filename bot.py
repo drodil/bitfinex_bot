@@ -255,49 +255,33 @@ class Bot:
                     if sold is not True:
                         logging.debug(coin + " buy failed as could not sell another coin")
                         return False
-
-                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, int(self.USD))) / float(price)
-                if amount >= 0.0001 and self.USD > self.min_spend_in_usd:
-                    logging.info(coin + " buy of " + str(amount) + " at " + str(price))
-                    resp = self.trading_v1.new_order(coin, amount, price, "buy", "exchange market",
-                                                     aff_code=self.aff_code, exchange='bitfinex',
-                                                     use_all_available=False)
-
-                    if resp is not None:
-                        hist = float(price)
-                        if coin in self.buy_history:
-                            hist = max(hist, self.buy_history[coin])
-                        self.buy_history[coin] = hist
-                        self._save_history()
-                        self._log_action("BUY", coin, price)
-                        self._refresh_balance()
-                        return True
-                    else:
-                        logging.error(coin + " buy failed!")
-                else:
-                    logging.debug(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
+                return self._handle_buy(coin, price)
             elif len(self.available_currencies) < self.max_number_of_coins:
-                amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, int(self.USD))) / float(price)
-                if amount >= 0.0001 and self.USD > self.min_spend_in_usd:
-                    logging.info(coin + " buy of " + str(amount) + " at " + str(price))
-                    resp = self.trading_v1.new_order(coin, amount, float(price), "buy", "exchange market",
-                                                     aff_code=self.aff_code, exchange='bitfinex',
-                                                     use_all_available=False)
-                    if resp is not None:
-                        hist = float(price)
-                        if coin in self.buy_history:
-                            hist = max(hist, self.buy_history[coin])
-                        self.buy_history[coin] = hist
-                        self._save_history()
-                        self._log_action("BUY", coin, price)
-                        self._refresh_balance()
-                        return True
-                    else:
-                        logging.error(coin + " buy failed!")
-                else:
-                    logging.debug(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
+                return self._handle_buy(coin, price)
         else:
             logging.debug(coin + " not buying as we already have it and no indication to buy more")
+        return False
+
+    def _handle_buy(self, coin, price):
+        amount = min(self.max_spend_in_usd, max(self.min_spend_in_usd, int(self.USD))) / float(price)
+        if amount >= 0.0001 and self.USD > self.min_spend_in_usd:
+            logging.info(coin + " buy of " + str(amount) + " at " + str(price))
+            resp = self.trading_v1.new_order(coin, amount, float(price), "buy", "exchange market",
+                                             aff_code=self.aff_code, exchange='bitfinex',
+                                             use_all_available=False)
+            if resp is not None:
+                hist = float(price)
+                if coin in self.buy_history:
+                    hist = max(hist, self.buy_history[coin])
+                self.buy_history[coin] = hist
+                self._save_history()
+                self._log_action("BUY", coin, price)
+                self._refresh_balance()
+                return True
+            else:
+                logging.error(coin + " buy failed!")
+        else:
+            logging.debug(coin + " buy failed: not enough USD (" + str(self.USD) + ")")
         return False
 
     def _sell_coin(self, coin, price, force):
@@ -310,7 +294,6 @@ class Bot:
         if coin in self.available_currencies:
             logging.debug(coin + " selling attempt")
             amount = "0"
-            sell = True
             for balances in self.balance:
                 if balances["currency"] == coin:
                     amount = balances["amount"]
@@ -320,29 +303,32 @@ class Bot:
                     logging.debug(
                         coin + " not selling CP: " + str(price) + " BP: " + str(self.buy_history[coin]) + " PP: " + str(
                             self.buy_history[coin] * multiplier))
-                    sell = False
+                    return False
 
-            if sell:
-                logging.info(coin + " sell of " + str(amount) + " at " + str(price))
-                resp = self.trading_v1.new_order(coin, amount, price, "sell", "exchange market", aff_code=self.aff_code,
-                                                 exchange='bitfinex', use_all_available=True)
-                if resp is not None:
-                    if coin in self.buy_history:
-                        buy_price = self.buy_history[coin]
-                        buy_value = float(buy_price) * float(amount) * float(1 - self.trade_fee_percentage)
-                        sell_value = float(amount) * float(price) * float(1 - self.trade_fee_percentage)
-                        logging.info(coin + " sell made profit of " + str(sell_value - buy_value) + "USD")
-                    self._log_action("SELL", coin, price)
-                    self._refresh_balance()
-                    self.sell_history[coin] = datetime.now()
-                    if coin in self.buy_history:
-                        del self.buy_history[coin]
-                        self._save_history()
-                    return True
-                else:
-                    logging.error(coin + " sell failed!")
+            return self._handle_buy(coin, amount, price)
         else:
             logging.warning(coin + " sell failed as we do not have it")
+        return False
+
+    def _handle_sell(self, coin, amount, price):
+        logging.info(coin + " sell of " + str(amount) + " at " + str(price))
+        resp = self.trading_v1.new_order(coin, amount, price, "sell", "exchange market", aff_code=self.aff_code,
+                                         exchange='bitfinex', use_all_available=True)
+        if resp is not None:
+            if coin in self.buy_history:
+                buy_price = self.buy_history[coin]
+                buy_value = float(buy_price) * float(amount) * float(1 - self.trade_fee_percentage)
+                sell_value = float(amount) * float(price) * float(1 - self.trade_fee_percentage)
+                logging.info(coin + " sell made profit of " + str(sell_value - buy_value) + "USD")
+            self._log_action("SELL", coin, price)
+            self._refresh_balance()
+            self.sell_history[coin] = datetime.now()
+            if coin in self.buy_history:
+                del self.buy_history[coin]
+                self._save_history()
+            return True
+        else:
+            logging.error(coin + " sell failed!")
         return False
 
     def _refresh_balance(self):
