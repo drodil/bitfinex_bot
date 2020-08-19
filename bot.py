@@ -219,7 +219,7 @@ class Bot:
             now = datetime.now()
             diff = now - self.sell_history[coin]
             minutes = diff.seconds / 60
-            if minutes > self.quiet_time:
+            if minutes <= self.quiet_time:
                 logging.debug(coin + " not buying as it's on quiet period")
                 return False
             del self.sell_history[coin]
