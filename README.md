@@ -12,10 +12,20 @@ using this bot. Use it at your own risk!**
 
 TALib is used to calculate technical analysis for the cryptocoins. All
 dependencies are included in the setup.py so you can use pip to install the bot.
+Additionally Python 3.8 > is required.
 
 ```bash
-pip3 install .
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xzf ta-lib-0.4.0-src.tar.gz
+cd ta-lib/
+sudo ./configure
+sudo make
+sudo make install
+```
 
+```bash
+cd bitfinex_bot/
+pip3 install .
 ```
 
 If you have errors during ta-lib installation, please see
@@ -38,7 +48,6 @@ file **bitfinex_bot/account_info** in the following format:
 Modify the necessary parameters in the bot.py for your liking:
 
 ```python
-
 # Traded coin pairs
 coin_pairs = ['btcusd', 'ethusd', 'iotusd', 'xrpusd', 'ltcusd',
              'zecusd', 'dshusd', 'eosusd', 'neousd', 'etcusd',

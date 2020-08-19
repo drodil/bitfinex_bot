@@ -7,3 +7,4 @@ history.json
 *.log.*
 account_info.txt
 trades.txt
+.idea/
