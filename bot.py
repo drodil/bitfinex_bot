@@ -31,10 +31,13 @@ class Bot:
     profit_multiplier = 1.006
     # Multiplier to break even with fees
     break_even_multiplier = 1 + (trade_fee_percentage * 2)
+    # Quiet time after sell not to buy the same coin (in minutes)
+    quiet_time = 30
 
     public_v1 = bitfinex.PublicV1()
     public_v2 = bitfinex.PublicV2()
     buy_history = dict()
+    sell_history = dict()
     buy_attempts = dict()
     latest_price = dict()
     latest_score = dict()
@@ -212,6 +215,15 @@ class Bot:
             del self.buy_attempts[coin]
 
     def _buy_coin(self, coin, price, force):
+        if coin not in self.available_currencies and coin in self.sell_history:
+            now = datetime.now()
+            diff = now - self.sell_history[coin]
+            minutes = diff.seconds / 60
+            if minutes > self.quiet_time:
+                logging.debug(coin + " not buying as it's on quiet period")
+                return False
+            del self.sell_history[coin]
+
         if force is True and coin in self.available_currencies:
             if coin in self.buy_history and coin in self.available_currencies:
                 if float(price) < self.buy_history[coin] * self.profit_multiplier:
@@ -322,6 +334,7 @@ class Bot:
                         logging.info(coin + " sell made profit of " + str(sell_value - buy_value) + "USD")
                     self._log_action("SELL", coin, price)
                     self._refresh_balance()
+                    self.sell_history[coin] = datetime.now()
                     if coin in self.buy_history:
                         del self.buy_history[coin]
                         self._save_history()
