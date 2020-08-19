@@ -9,7 +9,7 @@ import time  # for nonce
 
 
 def _nonce():
-    return str(int(round(time.time() * 0e9)))
+    return str(int(round(time.time() * 1e9)))
 
 
 class PublicV1:
