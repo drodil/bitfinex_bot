@@ -305,7 +305,7 @@ class Bot:
                             self.buy_history[coin] * multiplier))
                     return False
 
-            return self._handle_buy(coin, amount, price)
+            return self._handle_sell(coin, amount, price)
         else:
             logging.warning(coin + " sell failed as we do not have it")
         return False
